@@ -4,75 +4,71 @@ import java.util.Scanner;
 import java.util.Stack;
 
 /**
- * Класс для разбора и вычисления математических выражений.
+ * Класс ExpressionEvaluator предназначен для вычисления математических выражений,
+ * поддерживающих переменные и базовые арифметические операции.
+ *
+ * <p>Выражения могут содержать числа, переменные (которые должны быть определены заранее),
+ * а также операторы: +, -, *, / и скобки для управления порядком операций.</p>
  */
 public class ExpressionEvaluator {
 
-    private Map<String, Double> variables = new HashMap<>();
+    /**
+     * Хранит значения переменных, используемых в выражениях.
+     */
+    static final Map<String, Double> variables = new HashMap<>();
 
     /**
-     * Метод для вычисления значения выражения.
+     * Вычисляет значение заданного математического выражения.
      *
-     * @param expression математическое выражение в виде строки
-     * @return результат вычисления выражения
-     * @throws IllegalArgumentException если выражение некорректно
+     * @param expression строка, представляющая математическое выражение
+     * @return результат вычисления выражения в виде числа с плавающей запятой
+     * @throws Exception если происходит ошибка при разборе или вычислении выражения,
+     *                   например, если переменная не определена или происходит деление на ноль
      */
-    public double evaluate(String expression) {
-        expression = expression.replaceAll("\s+", ""); // Удаление пробелов
-        if (!isValidExpression(expression)) {
-            throw new IllegalArgumentException("Некорректное выражение: " + expression);
-        }
+    public static double evaluate(String expression) throws Exception {
+        char[] tokens = expression.toCharArray();
 
-        return evaluateExpression(expression);
-    }
-
-    /**
-     * Метод для добавления переменной и её значения.
-     *
-     * @param name имя переменной
-     * @param value значение переменной
-     */
-    public void setVariable(String name, double value) {
-        variables.put(name, value);
-    }
-
-    private boolean isValidExpression(String expression) {
-        // Простая проверка на корректность (можно улучшить)
-        return expression.matches("[0-9+\-*/()a-zA-Z]+");
-    }
-
-    private double evaluateExpression(String expression) {
         Stack<Double> values = new Stack<>();
         Stack<Character> operators = new Stack<>();
 
-        for (int i = 0; i < expression.length(); i++) {
-            char ch = expression.charAt(i);
+        for (int i = 0; i < tokens.length; i++) {
+            if (tokens[i] == ' ') {
+                continue;
+            }
 
-            // Если текущий символ - число или переменная
-            if (Character.isDigit(ch) || Character.isLetter(ch)) {
+            if (Character.isDigit(tokens[i])) {
                 StringBuilder sb = new StringBuilder();
-                while (i < expression.length() && (Character.isDigit(expression.charAt(i)) || Character.isLetter(expression.charAt(i)))) {
-                    sb.append(expression.charAt(i++));
+                while (i < tokens.length && (Character.isDigit(tokens[i]) || tokens[i] == '.')) {
+                    sb.append(tokens[i++]);
                 }
-                i--; // Для корректного увеличения i в основном цикле
-                String token = sb.toString();
-                if (Character.isDigit(token.charAt(0))) {
-                    values.push(Double.parseDouble(token));
+                values.push(Double.parseDouble(sb.toString()));
+                i--;
+            } else if (Character.isLetter(tokens[i])) {
+                StringBuilder sb = new StringBuilder();
+                while (i < tokens.length && Character.isLetter(tokens[i])) {
+                    sb.append(tokens[i++]);
+                }
+                String varName = sb.toString();
+                if (variables.containsKey(varName)) {
+                    values.push(variables.get(varName));
                 } else {
-                    values.push(variables.getOrDefault(token, 0.0)); // Получаем значение переменной
+                    throw new Exception("Переменная не определена: " + varName);
                 }
-            } else if (ch == '(') {
-                operators.push(ch);
-            } else if (ch == ')') {
-                while (operators.peek() != '(') {
+                i--;
+            } else if (tokens[i] == '(') {
+                operators.push(tokens[i]);
+            } else if (tokens[i] == ')') {
+                while (!operators.isEmpty() && operators.peek() != '(') {
                     values.push(applyOperation(operators.pop(), values.pop(), values.pop()));
                 }
-                operators.pop(); // Удаляем '('
-            } else if (isOperator(ch)) {
-                while (!operators.isEmpty() && precedence(ch) <= precedence(operators.peek())) {
+                if (!operators.isEmpty()) {
+                    operators.pop();
+                }
+            } else if (isOperator(tokens[i])) {
+                while (!operators.isEmpty() && precedence(tokens[i]) <= precedence(operators.peek())) {
                     values.push(applyOperation(operators.pop(), values.pop(), values.pop()));
                 }
-                operators.push(ch);
+                operators.push(tokens[i]);
             }
         }
 
@@ -83,11 +79,23 @@ public class ExpressionEvaluator {
         return values.pop();
     }
 
-    private boolean isOperator(char c) {
+    /**
+     * Проверяет, является ли заданный символ оператором.
+     *
+     * @param c символ для проверки
+     * @return true, если символ является оператором; false в противном случае
+     */
+    private static boolean isOperator(char c) {
         return c == '+' || c == '-' || c == '*' || c == '/';
     }
 
-    private int precedence(char operator) {
+    /**
+     * Определяет приоритет оператора.
+     *
+     * @param operator оператор для определения приоритета
+     * @return целое число, представляющее приоритет оператора
+     */
+    private static int precedence(char operator) {
         switch (operator) {
             case '+':
             case '-':
@@ -96,11 +104,20 @@ public class ExpressionEvaluator {
             case '/':
                 return 2;
             default:
-                return 0;
+                return -1;
         }
     }
 
-    private double applyOperation(char operator, double b, double a) {
+    /**
+     * Применяет заданный оператор к двум числам.
+     *
+     * @param operator оператор, который нужно применить
+     * @param b        второе число
+     * @param a        первое число
+     * @return результат применения оператора к числам a и b
+     * @throws Exception если происходит деление на ноль или оператор неизвестен
+     */
+    private static double applyOperation(char operator, double b, double a) throws Exception {
         switch (operator) {
             case '+':
                 return a + b;
@@ -109,3 +126,40 @@ public class ExpressionEvaluator {
             case '*':
                 return a * b;
             case '/':
+                if (b == 0) throw new Exception("Деление на ноль!");
+                return a / b;
+            default:
+                throw new Exception("Неизвестный оператор: " + operator);
+        }
+    }
+
+
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+
+        System.out.print("Введите количество переменных: ");
+        int varCount = scanner.nextInt();
+        scanner.nextLine();
+
+        for (int i = 0; i < varCount; i++) {
+            System.out.print("Введите имя переменной: ");
+            String varName = scanner.nextLine();
+            System.out.print("Введите значение переменной: ");
+            double varValue = scanner.nextDouble();
+            variables.put(varName, varValue);
+            scanner.nextLine();
+        }
+
+        System.out.print("Введите выражение для вычисления: ");
+        String expression = scanner.nextLine();
+
+        try {
+            double result = evaluate(expression);
+            System.out.println("Результат: " + result);
+        } catch (Exception e) {
+            System.out.println("Ошибка: " + e.getMessage());
+        }
+
+        scanner.close();
+    }
+}
